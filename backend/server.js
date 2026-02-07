@@ -15,9 +15,14 @@ app.use(cors());
 app.use(express.json());
 
 // Routes
+const vendorRoutes = require('./routes/vendorRoutes');
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Backend is running correctly', timestamp: new Date() });
 });
+
+app.use('/api/vendor', vendorRoutes);
+
 
 // Sync Database and Start Server
 const startServer = async () => {
