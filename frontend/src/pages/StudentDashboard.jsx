@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { ShoppingCart, Clock } from 'lucide-react';
+import { ShoppingCart, Clock, Bell } from 'lucide-react';
+import socket from '../socket'; // Import socket
 
 const StudentDashboard = () => {
   const [vendors, setVendors] = useState([]);
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [menu, setMenu] = useState([]);
-  const [cart, setCart] = useState({}); // { itemId: quantity }
-  const [orderStatus, setOrderStatus] = useState(null); // { token, predictedTime, status }
+  const [cart, setCart] = useState({});
+  const [orderStatus, setOrderStatus] = useState(null); // { token, predictedTime, status, id }
   const [loading, setLoading] = useState(true);
 
   // Hardcoded for Phase 3 MVP
@@ -15,7 +16,31 @@ const StudentDashboard = () => {
 
   useEffect(() => {
     fetchVendors();
-  }, []);
+
+    // Socket Connection
+    socket.emit('join_student', STUDENT_ID);
+
+    socket.on('order_status_update', (data) => {
+        // data = { orderId, status, token, predicted_pickup_time }
+        if (orderStatus && orderStatus.id === data.orderId) {
+             setOrderStatus(prev => ({
+                 ...prev,
+                 status: data.status,
+                 predictedTime: new Date(data.predicted_pickup_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+             }));
+
+             if (data.status === 'ready') {
+                 // Play notification
+                 const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+                 audio.play().catch(e => console.log('Audio play failed', e));
+             }
+        }
+    });
+
+    return () => {
+        socket.off('order_status_update');
+    };
+  }, [orderStatus]); // Re-bind if orderStatus changes to ensure we have context if needed, though usually socket listener should be stable
 
   const fetchVendors = async () => {
     try {
@@ -88,11 +113,13 @@ const StudentDashboard = () => {
       });
       
       setOrderStatus({
+        id: res.data.id,
         token: res.data.token,
         predictedTime: new Date(res.data.predicted_pickup_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         status: res.data.status
       });
       setCart({}); // Clear cart
+      window.scrollTo(0, 0); // Scroll to top to see status
     } catch (err) {
       console.error('Error placing order:', err);
       alert('Failed to place order. Please try again.');
@@ -104,8 +131,47 @@ const StudentDashboard = () => {
   return (
     <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 bg-gray-50 min-h-screen">
       
+      {/* 3. Order Status Banner (If Active) */}
+      {orderStatus && (
+        <div className={`mb-8 p-6 rounded-lg shadow-lg text-center transition-colors duration-500 ${
+            orderStatus.status === 'ready' ? 'bg-green-100' : 'bg-white'
+        }`}>
+          <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+             {orderStatus.status === 'ready' ? <Bell className="w-8 h-8 text-green-600 animate-bounce" /> : <Clock className="w-8 h-8 text-indigo-600" />}
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              {orderStatus.status === 'pending' && "Order Placed"}
+              {orderStatus.status === 'preparing' && "Preparing your food..."}
+              {orderStatus.status === 'ready' && "Ready for Pickup!"}
+          </h2>
+          <p className="text-gray-600 mb-6">Token: <span className="font-mono font-bold text-xl">{orderStatus.token}</span></p>
+          
+          <div className="mb-4">
+             <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 max-w-md mx-auto">
+                <div className={`h-2.5 rounded-full ${orderStatus.status === 'ready' ? 'bg-green-600' : 'bg-indigo-600'}`} style={{ width: orderStatus.status === 'pending' ? '10%' : orderStatus.status === 'preparing' ? '60%' : '100%' }}></div>
+             </div>
+          </div>
+          
+          <div className="mb-8">
+            <p className="text-sm text-gray-500 mb-1">Estimated Pickup Time</p>
+            <p className="text-4xl font-bold text-gray-900">{orderStatus.predictedTime}</p>
+          </div>
+
+          {orderStatus.status === 'ready' && (
+               <div className="text-lg font-bold text-green-700 animate-pulse">Go collect your order!</div>
+          )}
+
+          <button 
+            onClick={() => { setSelectedVendor(null); setOrderStatus(null); }}
+            className="mt-4 text-indigo-600 font-medium hover:text-indigo-800"
+          >
+            Start New Order
+          </button>
+        </div>
+      )}
+
       {/* 1. Vendor Selection */}
-      {!selectedVendor && (
+      {!selectedVendor && !orderStatus && (
         <div>
           <h2 className="text-2xl font-bold mb-6 px-4">Available Vendors</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 px-4">
@@ -204,7 +270,6 @@ const StudentDashboard = () => {
                   </div>
                   <div className="flex justify-between text-sm text-gray-600 mb-6">
                      <span className="flex items-center"><Clock className="w-4 h-4 mr-1"/> Est. Wait</span>
-                     {/* Gross estimate: Sum of prep times. Real prediction happens on backend */}
                      <span>~{calculateTotal().prepTime} mins + queue</span>
                   </div>
                   <button
@@ -222,35 +287,6 @@ const StudentDashboard = () => {
           )}
         </div>
       )}
-
-      {/* 3. Order Success */}
-      {orderStatus && (
-        <div className="max-w-md mx-auto mt-10 bg-white p-8 rounded-lg shadow-lg text-center">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Clock className="w-8 h-8 text-green-600" />
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Order Placed!</h2>
-          <p className="text-gray-600 mb-6">Your order has been sent to the kitchen.</p>
-          
-          <div className="bg-gray-50 p-4 rounded-md mb-6">
-            <p className="text-sm text-gray-500 uppercase tracking-wide font-semibold mb-1">Pickup Token</p>
-            <p className="text-3xl font-mono font-bold text-indigo-600">{orderStatus.token}</p>
-          </div>
-
-          <div className="mb-8">
-            <p className="text-sm text-gray-500 mb-1">Estimated Pickup Time</p>
-            <p className="text-4xl font-bold text-gray-900">{orderStatus.predictedTime}</p>
-          </div>
-
-          <button 
-            onClick={() => { setSelectedVendor(null); setOrderStatus(null); }}
-            className="text-indigo-600 font-medium hover:text-indigo-800"
-          >
-            Place Another Order
-          </button>
-        </div>
-      )}
-
     </div>
   );
 };

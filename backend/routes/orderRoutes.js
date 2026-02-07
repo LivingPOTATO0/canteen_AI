@@ -66,8 +66,7 @@ const calculatePickupTime = async (vendorId, newOrderItems) => {
 router.post('/', async (req, res) => {
   try {
     const { studentId, vendorId, items } = req.body; 
-    // items: [{ menu_item_id: 1, quantity: 2 }, ...]
-
+    
     if (!vendorId || !items || items.length === 0) {
       return res.status(400).json({ error: 'Invalid order data' });
     }
@@ -86,7 +85,7 @@ router.post('/', async (req, res) => {
 
     // Create Order
     const newOrder = await Order.create({
-      student_id: studentId || null, // Optional for guest checkout if needed
+      student_id: studentId || null,
       vendor_id: vendorId,
       status: 'pending',
       total_price: totalPrice,
@@ -105,12 +104,60 @@ router.post('/', async (req, res) => {
         });
     }
 
+    // Fetch full order details for the socket emit
+    const fullOrder = await Order.findByPk(newOrder.id, {
+        include: [{ model: OrderItem, include: [MenuItem] }]
+    });
+
+    // Emit Socket Event to Vendor
+    const io = req.app.get('io');
+    io.to(`vendor_${vendorId}`).emit('new_order', fullOrder);
+
     res.status(201).json(newOrder);
 
   } catch (error) {
     console.error('Order Error:', error);
     res.status(500).json({ error: error.message });
   }
+});
+
+// PUT /api/orders/:id/status - Update order status
+router.put('/:id/status', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body; // pending, preparing, ready, completed
+
+        const order = await Order.findByPk(id, {
+             include: [{ model: User, as: 'Student' }] 
+        });
+
+        if (!order) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+
+        order.status = status;
+        // If ready, update actual pickup time? 
+        if (status === 'completed') {
+            order.actual_pickup_time = new Date();
+        }
+
+        await order.save();
+
+        // Emit to Student
+        const io = req.app.get('io');
+        if (order.student_id) {
+             io.to(`student_${order.student_id}`).emit('order_status_update', {
+                 orderId: order.id,
+                 status: status,
+                 token: order.token,
+                 predicted_pickup_time: order.predicted_pickup_time
+             });
+        }
+
+        res.json(order);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // GET /api/orders/student/:studentId
@@ -135,13 +182,20 @@ router.get('/student/:studentId', async (req, res) => {
 router.get('/vendor/:vendorId', async (req, res) => {
     try {
         const { vendorId } = req.params;
+        // Fetch orders that are NOT completed or cancelled to keep the list clean?
+        // Or all of them. Let's filter for active ones primarily or sort by status.
         const orders = await Order.findAll({
-            where: { vendor_id: vendorId },
+            where: { 
+                vendor_id: vendorId,
+                status: {
+                    [Op.ne]: 'cancelled' // Show everything else
+                }
+            },
             include: [
                  { model: User, as: 'Student', attributes: ['name'] },
                  { model: OrderItem, include: [MenuItem] }
             ],
-            order: [['predicted_pickup_time', 'ASC']] // Sort by urgency
+            order: [['predicted_pickup_time', 'ASC']]
         });
         res.json(orders);
     } catch (error) {
