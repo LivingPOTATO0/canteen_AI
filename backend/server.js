@@ -13,7 +13,7 @@ const app = express();
 const server = http.createServer(app); // Create HTTP server
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173", // Allow frontend origin
+    origin: ["http://localhost:5173", "http://localhost:5174"], // Allow both frontends
     methods: ["GET", "POST", "PUT"]
   }
 });
@@ -21,22 +21,30 @@ const io = new Server(server, {
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: ["http://localhost:5173", "http://localhost:5174"],
+  credentials: true
+}));
 app.use(express.json());
 
 // Make io accessible in routes
 app.set('io', io);
 
 // Routes
+// Routes
 const vendorRoutes = require('./routes/vendorRoutes');
 const orderRoutes = require('./routes/orderRoutes');
+const authRoutes = require('./routes/authRoutes');
+const supportRoutes = require('./routes/supportRoutes');
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Backend is running correctly', timestamp: new Date() });
 });
 
+app.use('/api/auth', authRoutes);
 app.use('/api/vendor', vendorRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/support', supportRoutes);
 
 // Socket.IO Connection Handler
 io.on('connection', (socket) => {

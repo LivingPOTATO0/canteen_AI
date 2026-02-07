@@ -1,22 +1,21 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
+import Register from './pages/Register';
 import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import VendorDashboard from './pages/VendorDashboard';
 import StudentDashboard from './pages/StudentDashboard';
 
 function App() {
   return (
     <Router>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-tomato-50 font-sans text-gray-900">
         <Navbar />
         <main>
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
             <Route path="/dashboard" element={<StudentDashboard />} />
-            <Route path="/vendor" element={<VendorDashboard />} />
           </Routes>
         </main>
       </div>

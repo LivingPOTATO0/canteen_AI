@@ -8,10 +8,15 @@ const Groq = require('groq-sdk');
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY }); // User provides this in .env
 
-// GET /api/vendors - List all vendors
+// GET /api/vendors - List all vendors and their menus for searching
 router.get('/', async (req, res) => {
   try {
-    const vendors = await Vendor.findAll();
+    const vendors = await Vendor.findAll({
+        include: [{
+            model: MenuItem,
+            attributes: ['name', 'category', 'price'] // Optimize payload
+        }]
+    });
     res.json(vendors);
   } catch (error) {
     res.status(500).json({ error: error.message });
