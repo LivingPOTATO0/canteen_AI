@@ -16,12 +16,14 @@ app.use(express.json());
 
 // Routes
 const vendorRoutes = require('./routes/vendorRoutes');
+const orderRoutes = require('./routes/orderRoutes');
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Backend is running correctly', timestamp: new Date() });
 });
 
 app.use('/api/vendor', vendorRoutes);
+app.use('/api/orders', orderRoutes);
 
 
 // Sync Database and Start Server
