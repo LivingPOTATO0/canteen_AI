@@ -5,6 +5,7 @@ const Order = require('../models/Order');
 const OrderItem = require('../models/OrderItem');
 const MenuItem = require('../models/MenuItem');
 const Vendor = require('../models/Vendor');
+const User = require('../models/User'); // Fix: Import User model
 
 // Utility to generate a short token
 const generateToken = () => {
@@ -199,7 +200,8 @@ router.get('/vendor/:vendorId', async (req, res) => {
         });
         res.json(orders);
     } catch (error) {
-         res.status(500).json({ error: error.message });
+         console.error('Error fetching vendor orders:', error);
+         res.status(500).json({ error: error.message, stack: error.stack });
     }
 });
 

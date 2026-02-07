@@ -10,6 +10,7 @@ const StudentDashboard = () => {
   const [cart, setCart] = useState({});
   const [orderStatus, setOrderStatus] = useState(null); // { token, predictedTime, status, id }
   const [loading, setLoading] = useState(true);
+  const [aiInsight, setAiInsight] = useState('');
 
   // Hardcoded for Phase 3 MVP
   const STUDENT_ID = 1; 
@@ -57,11 +58,20 @@ const StudentDashboard = () => {
     setSelectedVendor(vendor);
     setCart({}); // Clear cart when switching vendors
     setOrderStatus(null);
+    setAiInsight("Loading live status..."); // Reset insight
+
     try {
+      // Fetch Menu
       const res = await axios.get(`http://localhost:3000/api/vendor/menu?vendorId=${vendor.id}`);
       setMenu(res.data);
+      
+      // Fetch AI Insight
+      const insightRes = await axios.get(`http://localhost:3000/api/vendor/${vendor.id}/insight`);
+      setAiInsight(insightRes.data.insight);
+
     } catch (err) {
-      console.error('Error fetching menu:', err);
+      console.error('Error fetching data:', err);
+      setAiInsight("Standard wait times apply.");
     }
   };
 

@@ -2,11 +2,20 @@ const sequelize = require('./config/database');
 const User = require('./models/User');
 const Vendor = require('./models/Vendor');
 const MenuItem = require('./models/MenuItem');
+const Order = require('./models/Order'); // Import to ensure schema availability
+const OrderItem = require('./models/OrderItem'); // Import to ensure schema availability
 
 const seedDatabase = async () => {
   try {
     await sequelize.authenticate();
+    
+    // Disable Foreign Key Checks to allow dropping tables with relationships
+    await sequelize.query('SET FOREIGN_KEY_CHECKS = 0', { raw: true });
+    
     await sequelize.sync({ force: true }); // Reset DB for seeding
+
+    // Re-enable Foreign Key Checks
+    await sequelize.query('SET FOREIGN_KEY_CHECKS = 1', { raw: true });
 
     // Create Sample Users (Vendors)
     const vendorUser1 = await User.create({
